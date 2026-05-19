@@ -1,0 +1,6 @@
+{
+  "name": "Suraksha Voice Code",
+  "description": "A discreet, voice-activated safety system that monitors for a secret SOS phrase to trigger emergency alerts and evidence capture.",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
