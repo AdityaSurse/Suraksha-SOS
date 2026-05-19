@@ -163,31 +163,40 @@ export default function App() {
           const emergencyMessage = `EMERGENCY: ${profile.name} is in danger. Location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}. Map: ${mapUrl}. [Sent via Suraksha SOS]`;
           
           try {
+            addLog('info', `Attempting link to SOS Engine for ${contact.name}...`);
             const response = await fetch('/api/send-sos', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                to: contact.phone.replace(/\s/g, ''),
+                to: contact.phone.replace(/\s+/g, ''),
                 message: emergencyMessage,
                 userName: profile.name,
-                fromOverride: profile.senderPhone
+                fromOverride: profile.senderPhone?.replace(/\s+/g, '')
               })
             });
             
-            const result = await response.json();
+            let result;
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+              result = await response.json();
+            } else {
+              const text = await response.text();
+              throw new Error(`Server returned non-JSON response (${response.status}): ${text.slice(0, 100)}`);
+            }
             
             if (result.success) {
               if (result.simulated) {
                 addLog('alert', `SIMULATED ALERT for ${contact.name}`);
-                addLog('info', `DEBUG: Configure Twilio in Secrets for real SMS.`);
+                addLog('info', `DEBUG: Configure Twilio Secrets in your deployment dashboard.`);
               } else {
                 addLog('alert', `REAL SMS DELIVERED to ${contact.name}`);
               }
             } else {
-              addLog('error', `Dispatch failed: ${result.error}`);
+              addLog('error', `Dispatch failed: ${result.error || 'Unknown server error'}`);
             }
-          } catch (err) {
-            addLog('error', `Link failure to ${contact.name}`);
+          } catch (err: any) {
+            console.error('SOS Link Error:', err);
+            addLog('error', `Link failure to ${contact.name}: ${err.message}`);
           }
         }
       },

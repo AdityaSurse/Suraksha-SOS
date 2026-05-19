@@ -11,50 +11,56 @@ app.use(express.json());
 
 // API Route for Sending SOS
 app.post('/api/send-sos', async (req, res) => {
-  const { to, message, userName, fromOverride } = req.body;
-
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const envFrom = process.env.TWILIO_PHONE_NUMBER;
-
-  // Prioritize UI override if it looks valid, else fall back to env
-  const from = (fromOverride && fromOverride.length > 5) ? fromOverride : envFrom;
-
-  console.log(`[SERVER] SOS Request Received for ${to} from ${from}`);
-
-  // Validate credentials
-  const isMock = !sid || !token || !from || sid.includes('AC...') || token === '...' || from.includes('+1...');
-
-  if (isMock) {
-    console.warn('[SERVER] Simulation Mode: Missing valid Twilio credentials.');
-    return res.json({ 
-      success: true, 
-      simulated: true,
-      message: 'Simulation successful. To send real SMS, configure TWILIO secrets.'
-    });
-  }
-
   try {
+    const { to, message, userName, fromOverride } = req.body;
+
+    const sid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
+    const token = (process.env.TWILIO_AUTH_TOKEN || '').trim();
+    const envFrom = (process.env.TWILIO_PHONE_NUMBER || '').trim();
+
+    // Prioritize UI override if it looks valid, else fall back to env
+    const from = (fromOverride && fromOverride.length > 5) ? fromOverride : envFrom;
+
+    console.log(`[SERVER] SOS Triggered: To=${to}, From=${from}`);
+
+    // Validate credentials
+    const hasSid = sid && sid.startsWith('AC') && sid.length > 30;
+    const hasToken = token && token.length > 10;
+    const hasFrom = from && from.length > 5 && !from.includes('...');
+    
+    const isMock = !hasSid || !hasToken || !hasFrom;
+
+    if (isMock) {
+      console.warn('[SERVER] Simulation Mode triggered (Credentials missing or invalid)');
+      return res.json({ 
+        success: true, 
+        simulated: true,
+        message: 'Simulation successful. To send real SMS, add valid TWILIO_ACCOUNT_SID, AUTH_TOKEN, and PHONE_NUMBER to environment variables.'
+      });
+    }
+
     const client = twilio(sid, token);
     
-    // Ensure number starts with + for E.164
-    const formattedTo = to.startsWith('+') ? to : `+${to}`;
+    // Ensure numbers are E.164 (Twilio requirement)
+    const formattedTo = to.startsWith('+') ? to : `+${to.replace(/\D/g, '')}`;
+    const formattedFrom = from.startsWith('+') ? from : `+${from.replace(/\D/g, '')}`;
     
-    console.log(`[SERVER] Attempting dispatch: From(${from}) To(${formattedTo})`);
+    console.log(`[SERVER] Sending real SMS...`);
 
     const result = await client.messages.create({
       body: message,
-      from: from,
+      from: formattedFrom,
       to: formattedTo
     });
 
-    console.log(`[SERVER] Dispatch SUCCESS: SID ${result.sid}`);
-    res.json({ success: true, simulated: false });
+    console.log(`[SERVER] SMS Sent Successfully. SID: ${result.sid}`);
+    return res.json({ success: true, simulated: false });
+
   } catch (error: any) {
-    console.error('[SERVER] DISPATCH FAILED:', error.code, error.message);
-    res.status(500).json({ 
+    console.error('[SERVER] Twilio/SOS Error:', error);
+    return res.status(500).json({ 
       success: false, 
-      error: error.message,
+      error: error.message || 'Unknown server error',
       code: error.code,
       moreInfo: error.moreInfo 
     });
