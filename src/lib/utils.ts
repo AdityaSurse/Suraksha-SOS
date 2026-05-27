@@ -50,9 +50,26 @@ export function validatePhone(phone: string): boolean {
 
 export function normalizePhoneForAPI(phone: string): string {
   let cleaned = phone.replace(/\D/g, '');
-  // Default to India if 10 digits and no +, but we should ideally let users enter full format
-  if (cleaned.length === 10 && !phone.startsWith('+')) {
-    return `+91${cleaned}`;
+  if (!cleaned) return '';
+  
+  if (phone.startsWith('+')) {
+    return `+${cleaned}`;
   }
-  return phone.startsWith('+') ? phone.replace(/\s/g, '') : `+${cleaned}`;
+
+  // If 10 digits, we need to guess country code or ask user
+  // For this app, we prioritize Indian Mobile format (6-9) or US (2-9 with +1)
+  if (cleaned.length === 10) {
+    if (/^[6-9]/.test(cleaned)) {
+      return `+91${cleaned}`;
+    }
+    // Ambiguous. Could be US. We'll leave it as +<cleaned> 
+    // and let Twilio/Server handle it, but +1 is a common US guess.
+    return `+1${cleaned}`; 
+  }
+
+  if (cleaned.length === 12 && cleaned.startsWith('91')) {
+    return `+${cleaned}`;
+  }
+
+  return `+${cleaned}`;
 }

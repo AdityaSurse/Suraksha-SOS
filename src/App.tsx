@@ -192,7 +192,16 @@ export default function App() {
                 addLog('alert', `REAL SMS DELIVERED to ${contact.name}`);
               }
             } else {
-              addLog('error', `Dispatch failed: ${result.error || 'Unknown server error'}`);
+              const errSnippet = result.error || 'Unknown server error';
+              addLog('error', `Dispatch to ${contact.name} FAILED: ${errSnippet}`);
+              // If it's a verification error, explain clearly
+              if (result.code === 21608) {
+                addLog('error', `CRITICAL: Your Twilio account is a Trial. You MUST manually verify ${contact.name}'s number in the Twilio Console under "Verified Caller IDs".`);
+              } else if (result.code === 21606) {
+                addLog('error', `CRITICAL: Twilio number mismatch! The sender number in Settings does not belong to or matches your active Twilio Account. Check your Twilio Console for your exact purchased number.`);
+              } else if (result.code === 20003) {
+                addLog('error', `CRITICAL: Twilio authentication failed! Check that your Account SID and Auth Token env variables are copied exactly with no leading/trailing spaces.`);
+              }
             }
           } catch (err: any) {
             console.error('SOS Link Error:', err);
@@ -358,7 +367,7 @@ export default function App() {
                     "w-full bg-white/5 border rounded-xl px-3 pt-6 pb-2 text-sm text-emerald-300 focus:ring-1 outline-none transition-all placeholder:text-white/10 font-mono",
                     profile.senderPhone && !validatePhone(profile.senderPhone) ? "border-rose-500/50 focus:ring-rose-500/50" : "border-emerald-500/20 focus:ring-emerald-500/50"
                   )}
-                  placeholder="e.g. +1234567890"
+                  placeholder="e.g. +12025550123"
                   value={profile.senderPhone}
                   onChange={(e) => setProfile({...profile, senderPhone: e.target.value})}
                   onBlur={() => setProfile({...profile, senderPhone: normalizePhoneForAPI(profile.senderPhone)})}

@@ -46,9 +46,13 @@ app.post('/api/send-sos', async (req, res) => {
     // Note: In some environments, twilio might need to be called differently if exported as a module
     const client = twilio(sid, token);
     
-    // Ensure numbers are E.164 (Twilio requirement)
-    const formattedTo = to.startsWith('+') ? to : `+${to.replace(/\D/g, '')}`;
-    const formattedFrom = from.startsWith('+') ? from : `+${from.replace(/\D/g, '')}`;
+    // Ensure numbers are perfectly formatted for E.164 (Twilio requirement)
+    // Strip any possible remaining spaces, dashes, parentheses to prevent format/mismatch errors
+    const cleanedTo = to.replace(/\D/g, '');
+    const cleanedFrom = from.replace(/\D/g, '');
+    
+    const formattedTo = `+${cleanedTo}`;
+    const formattedFrom = `+${cleanedFrom}`;
     
     console.log(`[SERVER] Sending real SMS via Twilio: ${formattedFrom} -> ${formattedTo}`);
 
@@ -63,9 +67,25 @@ app.post('/api/send-sos', async (req, res) => {
 
   } catch (error: any) {
     console.error('[SERVER] SOS Engine Error:', error);
+    
+    let errorMessage = error.message || 'Unknown server error';
+    
+    // Specific Twilio Trial/Setup Error Mapping
+    if (error.code === 21608) {
+      errorMessage = `Twilio Trial Limit: The recipient number you are sending to is not verified. On Twilio Trial accounts, YOU MUST verify each recipient number in your Twilio Console under 'Verified Caller IDs' before they can receive SMS.`;
+    } else if (error.code === 21606) {
+      errorMessage = `Twilio Sender Number Mismatch: The "Twilio Sender Number" you entered does not belong to or is not associated with the TWILIO_ACCOUNT_SID used. Please double-check your Twilio console to ensure you purchased/active this exact sender number.`;
+    } else if (error.code === 20003) {
+      errorMessage = `Twilio Authentication Failed: The TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN is invalid. Please copy the credentials exact from your Twilio Console and update your environment variables.`;
+    } else if (error.code === 21211) {
+      errorMessage = `Invalid phone number format. Please ensure the recipient number includes the correct country code (e.g. +91 or +1).`;
+    } else if (error.code === 21408) {
+      errorMessage = `Region Restriction: Twilio has not enabled SMS permissions for this country in your account settings. Go to Programmable Messaging -> Settings -> Geo-Permissions in your Twilio Console to enable it.`;
+    }
+
     return res.status(error.status || 500).json({ 
       success: false, 
-      error: error.message || 'Unknown server error',
+      error: errorMessage,
       code: error.code
     });
   }
